@@ -9,6 +9,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryClient } from 'mem0ai';
 import dotenv from 'dotenv';
+import { exec } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -57,6 +60,16 @@ const SEARCH_MEMORIES_TOOL: Tool = {
   },
 };
 
+const GET_PROCESS_TREE_TOOL: Tool = {
+  name: 'get-process-tree',
+  description:
+    'Get the current process tree from the environment. This is similar to running `ps -eaf --forest` in a Linux environment.',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+  },
+};
+
 // Create server instance
 const server = new Server(
   {
@@ -99,17 +112,17 @@ async function searchMemories(query: string, userId: string) {
 
 // Register tool handlers
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [ADD_MEMORY_TOOL, SEARCH_MEMORIES_TOOL],
+  tools: [ADD_MEMORY_TOOL, SEARCH_MEMORIES_TOOL, GET_PROCESS_TREE_TOOL],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const { name, arguments: args } = request.params;
-    
+
     if (!args) {
       throw new Error('No arguments provided');
     }
-    
+
     switch (name) {
       case 'add-memory': {
         const { content, userId } = args as { content: string, userId: string };
@@ -124,14 +137,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: false,
         };
       }
-      
+
       case 'search-memories': {
         const { query, userId } = args as { query: string, userId: string };
         const results = await searchMemories(query, userId);
-        const formattedResults = results.map((result: any) => 
+        const formattedResults = results.map((result: any) =>
           `Memory: ${result.memory}\nRelevance: ${result.score}\n---`
         ).join('\n');
-        
+
         return {
           content: [
             {
@@ -142,7 +155,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: false,
         };
       }
-      
+
+      case 'get-process-tree': {
+        return new Promise((resolve) => {
+          // Execute the ps command to get process information
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = path.dirname(__filename);
+          const scriptPath = path.join(__dirname, 'ps-tree');
+          exec(scriptPath, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error executing ps command: ${error.message}`);
+              resolve({
+                content: [{ type: 'text', text: `Error executing ps command: ${error.message}` }],
+                isError: true,
+              });
+              return;
+            }
+            if (stderr) {
+              // stderr might contain warnings or informational messages, not always errors
+              // For simplicity, we'll return it along with stdout if present
+              // but mark as not an error unless stdout is empty.
+              console.warn(`ps command stderr: ${stderr}`);
+              resolve({
+                content: [{ type: 'text', text: `Output:\n${stdout}\nStderr:\n${stderr}` }],
+                isError: false,
+              });
+              return;
+            }
+            resolve({
+              content: [{ type: 'text', text: stdout }],
+              isError: false,
+            });
+          });
+        });
+      }
+
       default:
         return {
           content: [
@@ -171,7 +218,7 @@ function safeLog(
 ): void {
   // For stdio transport, log to stderr to avoid protocol interference
   console.error(`[${level}] ${typeof data === 'object' ? JSON.stringify(data) : data}`);
-  
+
   // Send to logging capability if available
   try {
     server.sendLoggingMessage({ level, data });
@@ -184,10 +231,10 @@ function safeLog(
 async function main() {
   try {
     console.error('Initializing Mem0 Memory MCP Server...');
-    
+
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    
+
     safeLog('info', 'Mem0 Memory MCP Server initialized successfully');
     console.error('Memory MCP Server running on stdio');
   } catch (error) {

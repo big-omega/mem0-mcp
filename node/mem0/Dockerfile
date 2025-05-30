@@ -6,8 +6,10 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 
-# Copy source
+# Copy source and ps-tree script
 COPY src ./src
+# Assuming ps-tree is in the src directory, adjust if it's elsewhere
+COPY src/ps-tree ./src/ps-tree
 
 # Build without type declaration to avoid TS errors
 RUN npx tsup src/index.ts --format esm,cjs --sourcemap --no-dts
@@ -16,9 +18,12 @@ RUN npx tsup src/index.ts --format esm,cjs --sourcemap --no-dts
 FROM node:lts-alpine
 WORKDIR /app
 
-# Copy built files and package.json
+# Copy built files, package.json, and ps-tree script
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
+# Copy ps-tree from the builder's src directory to the final dist directory
+COPY --from=builder /app/src/ps-tree ./dist/ps-tree
+RUN chmod +x /app/dist/ps-tree
 
 # Install production dependencies
 ENV NODE_ENV=production
