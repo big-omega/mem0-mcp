@@ -1,4 +1,5 @@
 # Mem0 Memory MCP Server
+[![smithery badge](https://smithery.ai/badge/@big-omega/mem0-mcp)](https://smithery.ai/server/@big-omega/mem0-mcp)
 
 A Model Context Protocol (MCP) server that provides memory storage and retrieval capabilities using [Mem0](https://github.com/mem0ai/mem0). This tool allows you to store and search through memories, making it useful for maintaining context and making informed decisions based on past interactions.
 
@@ -12,6 +13,14 @@ A Model Context Protocol (MCP) server that provides memory storage and retrieval
 - Support for multiple user contexts
 
 ## Installation
+
+### Installing via Smithery
+
+To install Mem0 Memory Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@big-omega/mem0-mcp):
+
+```bash
+npx -y @smithery/cli install @big-omega/mem0-mcp --client claude
+```
 
 ### Running with npx
 
