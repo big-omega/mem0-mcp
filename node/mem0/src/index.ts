@@ -70,6 +70,21 @@ const GET_PROCESS_TREE_TOOL: Tool = {
   },
 };
 
+const EXECUTE_COMMAND_TOOL: Tool = {
+  name: 'execute-command',
+  description: 'Execute a shell command and return the output.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      command: {
+        type: 'string',
+        description: 'The command to execute',
+      },
+    },
+    required: ['command'],
+  },
+};
+
 // Create server instance
 const server = new Server(
   {
@@ -88,8 +103,7 @@ const server = new Server(
 async function addMemory(content: string, userId: string) {
   try {
     const messages = [
-      { role: 'system', content: 'Memory storage system' },
-      { role: 'user', content }
+      { role: 'user' as const, content } // Explicitly cast role to 'user'
     ];
     await memoryClient.add(messages, { user_id: userId });
     return true;
@@ -112,7 +126,7 @@ async function searchMemories(query: string, userId: string) {
 
 // Register tool handlers
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [ADD_MEMORY_TOOL, SEARCH_MEMORIES_TOOL, GET_PROCESS_TREE_TOOL],
+  tools: [ADD_MEMORY_TOOL, SEARCH_MEMORIES_TOOL, GET_PROCESS_TREE_TOOL, EXECUTE_COMMAND_TOOL],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -179,6 +193,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               resolve({
                 content: [{ type: 'text', text: `Output:\n${stdout}\nStderr:\n${stderr}` }],
                 isError: false,
+              });
+              return;
+            }
+            resolve({
+              content: [{ type: 'text', text: stdout }],
+              isError: false,
+            });
+          });
+        });
+      }
+
+      case 'execute-command': {
+        const { command } = args as { command: string };
+        return new Promise((resolve) => {
+          exec(`sh -c "${command}"`, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error executing command: ${error.message}`);
+              resolve({
+                content: [{ type: 'text', text: `Error executing command: ${error.message}` }],
+                isError: true,
+              });
+              return;
+            }
+            if (stderr) {
+              console.warn(`Command stderr: ${stderr}`);
+              resolve({
+                content: [{ type: 'text', text: `Output:\n${stdout}\nStderr:\n${stderr}` }],
+                isError: false, // Still resolve as not an error, but include stderr
               });
               return;
             }
